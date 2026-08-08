@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  DrawWake 招待ページ（静的）
+
+  ■ なぜ Supabase Edge Function をやめたのか
+  Supabase は**独自ドメインを設定していないプロジェクトでは、
+  text/html のレスポンスを問答無用で text/plain に書き換える**
+  （共有ドメインでのフィッシング対策）。そのため招待ページが
+  ブラウザで「HTMLのソースがそのまま出る＋文字化け」状態になっていた。
+  独自ドメイン対応は Pro プラン（有料）が必要なので、
+  HTML をそのまま返せる GitHub Pages に置き換えた。
+
+  ■ 代わりに失うもの
+  静的ページなので **og:image を絵ごとに変えられない**。
+  SNS のタイムラインに出るサムネイルは共通の share-card.png になる。
+  ページを開いたあとは、下の JS が img パラメータから
+  その人の絵をちゃんと表示する。
+  絵ごとのサムネイルが必要になったら docs/invite-link-setup.md を参照。
+
+  ■ このファイルの扱い
+  website-src/invite.html が原本。build.py が website/drawwake/i/index.html
+  にコピーする。生成物のほうを編集しないこと。
+-->
+<title>DrawWake の招待</title>
+<meta name="description" content="アラームを止めるには、お題の絵を描くだけ。ねぼけた線が、毎朝の記録になります。">
+<meta property="og:title" content="DrawWake — 描かないと、止まらない目覚まし">
+<meta property="og:description" content="アラームを止めるには、お題の絵を描くだけ。ねぼけた線が、毎朝の記録になります。">
+<meta property="og:image" content="https://takazakura.github.io/drawwake-site/share-card.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DrawWake — 描かないと、止まらない目覚まし">
+<meta name="twitter:description" content="アラームを止めるには、お題の絵を描くだけ。ねぼけた線が、毎朝の記録になります。">
+<meta name="twitter:image" content="https://takazakura.github.io/drawwake-site/share-card.png">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #fbf7ee;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+                 "Noto Sans JP", sans-serif;
+    color: #16161a;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 18px; padding: 30px 20px 44px;
+    text-align: center;
+  }
+  .brand { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: #a0a0a8; }
+  .card {
+    background: #fff; border: 3px solid #16161a; border-radius: 6px;
+    padding: 13px 13px 16px; max-width: 288px; width: 100%;
+    box-shadow: 9px 11px 0 #bcd8f5; transform: rotate(-1.6deg);
+  }
+  .card img { width: 100%; display: block; border: 2.5px solid #16161a; background: #fdfbf7; }
+  .word { font-weight: 800; font-size: 18px; margin: 11px 2px 2px; text-align: left; }
+  .by   { font-size: 11px; color: #6a6a72; text-align: left; margin: 0 2px; }
+  h1 { font-size: 21px; font-weight: 800; margin: 4px 0 0; line-height: 1.45; }
+  p.lead { font-size: 13px; color: #55555c; margin: 0; line-height: 1.75; max-width: 320px; }
+  a.cta {
+    display: block; width: 100%; max-width: 288px;
+    background: #ffd64f; color: #16161a; text-decoration: none;
+    font-weight: 800; font-size: 16px; padding: 15px;
+    border: 3px solid #16161a; border-radius: 14px;
+    box-shadow: 5px 6px 0 #16161a;
+  }
+  a.cta:active { transform: translate(3px, 4px); box-shadow: 2px 2px 0 #16161a; }
+  a.sub { font-size: 13px; color: #55555c; text-decoration: underline; }
+  .note { font-size: 11px; color: #8a8a92; max-width: 300px; line-height: 1.7; }
+  .foot { font-size: 11px; color: #a8a8b0; margin-top: 4px; }
+  .foot a { color: #a8a8b0; }
+</style>
+</head>
+<body>
+  <div class="brand">DRAWWAKE</div>
+
+  <div class="card" id="card" hidden>
+    <img id="pic" alt="">
+    <div class="word" id="word"></div>
+    <div class="by" id="by"></div>
+  </div>
+
+  <h1 id="head">絵を描いて起きるアラーム</h1>
+  <p class="lead" id="lead">アラームを止めるには、お題の絵を描くだけ。<br>ねぼけた線が、毎朝の記録になります。</p>
+
+  <a class="cta" id="cta" href="https://apps.apple.com/jp/app/id6792154779">App Store で入手</a>
+  <a class="sub" id="sub" href="#" hidden>アプリを持っている人はこちら</a>
+
+  <p class="note" id="note" hidden></p>
+
+  <p class="foot">
+    <a href="https://takazakura.github.io/drawwake-site/drawwake/">DrawWake について</a>
+    ・ <a href="mailto:muscleflip8@gmail.com">muscleflip8@gmail.com</a>
+  </p>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE = "https://apps.apple.com/jp/app/id6792154779";
+
+  // ★og:image と同じ理由で、表示してよい画像を**自分のストレージだけ**に絞る。
+  //   ここを緩めると、誰でも好きな画像を「DrawWake の投稿」として
+  //   このページ経由で拡散できてしまう。
+  var IMG_PREFIX =
+    "https://wubohorosofugaoqkydh.supabase.co/storage/v1/object/public/drawings/";
+
+  var q = new URLSearchParams(location.search);
+  // 招待コードは英数字とハイフンだけ。それ以外は捨てる（URL 組み立てへの混入防止）
+  var code = (q.get("c") || "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 40);
+  var word = (q.get("w") || "").slice(0, 40);
+  var name = (q.get("n") || "").slice(0, 40);
+  var img  = q.get("img") || "";
+
+  var ja = (navigator.language || "ja").toLowerCase().indexOf("ja") === 0;
+  function t(jaText, enText) { return ja ? jaText : enText; }
+
+  if (!ja) { document.documentElement.lang = "en"; }
+
+  // --- 絵 ---
+  // ★textContent と src への代入だけを使う。innerHTML は使わない（XSS 対策）
+  if (img.indexOf(IMG_PREFIX) === 0 && img.indexOf("..") === -1) {
+    var pic = document.getElementById("pic");
+    pic.onerror = function () {
+      // HEIC は Android の Chrome では表示できない。出せないときは
+      // カードごと隠す（壊れた画像アイコンを見せない）
+      document.getElementById("card").hidden = true;
+    };
+    pic.src = img;
+    if (word) { document.getElementById("word").textContent = word; }
+    if (name) {
+      document.getElementById("by").textContent = t(name + " さんの朝の絵", "by " + name);
+    }
+    document.getElementById("card").hidden = false;
+  }
+
+  // --- 見出し ---
+  if (word) {
+    document.getElementById("head").textContent =
+      t("この絵、朝に描かれました", "Drawn this morning");
+  } else if (!ja) {
+    document.getElementById("head").textContent = "The alarm you have to draw to stop";
+  }
+  if (!ja) {
+    document.getElementById("lead").textContent =
+      "To stop the alarm, you draw the word you're given. Sleepy lines become your morning log.";
+    document.getElementById("cta").textContent = "Get it on the App Store";
+  }
+
+  // --- 招待 ---
+  // iOS は App Store をはさむとリンクの情報を引き継げない。
+  // 代わりにコードをクリップボードへ入れておき、アプリの初回起動時に
+  // 「〇〇さんとフレンドになる？」と出す（InviteClipboard.swift）。
+  // ★クリップボード書き込みは Safari では**タップの中でしか成功しない**ので、
+  //   読み込み時ではなくボタンを押した瞬間に実行する。
+  function copyCode() {
+    if (!code) { return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText("drawwake-invite:" + code);
+      }
+    } catch (e) { /* 失敗しても導線は壊れない（普通にインストールできる） */ }
+  }
+
+  if (code) {
+    var note = document.getElementById("note");
+    note.textContent = t(
+      "インストール後にアプリを開くと、招待した人とフレンドになれます。",
+      "Open the app after installing to become friends with the person who invited you.");
+    note.hidden = false;
+  }
+
+  document.getElementById("cta").addEventListener("click", copyCode);
+
+  // --- すでにアプリを持っている人向け ---
+  // ★自動ではアプリを開かない。入っていない端末では iOS が
+  //   「アドレスが無効です」の警告を出してしまい、招待された人の
+  //   ほとんどは**まだ持っていない人**だから。押した人だけ試す。
+  if (code) {
+    var sub = document.getElementById("sub");
+    sub.textContent = t("アプリを持っている人はこちら", "Already have the app?");
+    sub.hidden = false;
+    sub.addEventListener("click", function (e) {
+      e.preventDefault();
+      copyCode();
+      var t0 = Date.now();
+      var timer = setTimeout(function () {
+        if (Date.now() - t0 < 1800) { location.href = STORE; }
+      }, 1400);
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) { clearTimeout(timer); }
+      });
+      location.href = "drawwake://invite/" + encodeURIComponent(code);
+    });
+  }
+})();
+</script>
+</body>
+</html>
